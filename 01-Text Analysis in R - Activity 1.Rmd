@@ -1,0 +1,215 @@
+---
+title: "Introduction to Text Analysis in R"
+author: "Christian Staal Bruun Overgaard"
+date: "April 25, 2023"
+output: html_document
+---
+
+Analyzing text in R is a lot of fun. This tutorial gets you started with some of the basics. You'll learn:
+
+* How to search for a specific word to identify all the messages in a dataset that mention that word
+* How to identify the most frequent words in a given dataset
+* How to visualize word frequencies using bar charts and word clouds
+
+## Load packages
+
+First, let's load the relevant packages. If you haven't installed them already, you'll need to do that first, using the `install.packages()` function:
+
+```{r install-if-needed}
+#install.packages("readr")
+#install.packages("readxl")
+```
+
+Let's load the packages we need:
+
+```{r load-packages}
+library(readr) #for reading csv's
+library(readxl) #for reading Excel sheets 
+library(tidytext) #main package for text analysis
+library(tidyverse) #collection of useful packages, including ggplot
+library(ggthemes) #for customizing ggplots
+library(wordcloud) #for making word clouds
+```
+
+## Import Data
+
+Next, we import the data. In this tutorial, we'll work with a dataset that consists of 30,000 tweets about COVID-19, posted between January and May in 2020.
+
+```{r load-data}
+### LOAD DATA FROM EXCEL SHEET
+df <- readxl::read_excel("30K_tweets_COVID_for_tutorial.xlsx") 
+
+### IF YOU WANTED TO LOAD FROM A .CSV
+#df <- readr::read_csv("30K_tweets_COVID_for_tutorial.csv")
+
+head(df) #see what the data looks like
+glimpse(df) #alternative way to inspect the dataframe
+```
+
+## Subsetting data
+
+Before doing any analyses, it's often beneficial to process the data. Let's start by subsetting.
+
+### Use a single word to subset
+
+If you want to only look at tweets that mention a specific word (let's say "coronavirus"), you can use the `grepl()` function: 
+
+```{r subset1}
+df_cov <- df[grepl("Coronavirus"
+                     , df$text, ignore.case=TRUE),] 
+
+df_cov19 <- df[grepl("COVID-19"
+                     , df$text, ignore.case=TRUE),]
+```
+
+What if we wanted all tweets that mention BOTH of these words, or EITHER of them? We could modify the prior code like this:
+
+```{r subset2}
+### mentions either
+df_either <- df[grepl("Coronavirus|COVID-19"   #the vertical line means "or"
+                     , df$text, ignore.case=TRUE),] 
+
+### mentions both
+df_both <- df[grepl("Coronavirus", df$text, ignore.case=T) &
+                          grepl("COVID-19", df$text, ignore.case=T) ,]
+
+df_both$text[2] #look at the second message; see that it indeed mentions BOTH
+```
+
+### Use regular expressions to subset
+
+What if we wanted not only "Coronavirus" but also just instances of "Corona" to be included? Or what if we wanted both "COVID-19" and just "COVID"? In that case, we could use *regular expressions*:
+
+```{r subset3}
+df_all <- df[grepl("Corona*|COVID*"   #the symbol * means "anything"
+                     , df$text, ignore.case=TRUE),] 
+
+### See how many more tweets this approach keeps as compared to the prior approach:
+nrow(df_either)
+nrow(df_all)
+```
+
+In this tutorial, we'll examine tweets that mentioned either, so we'll use the dataframe called "df_all" in the next step below.
+
+## Working with the `TidyText` package
+
+### Transform data to relevant structures
+
+For most text analysis tasks, you need to process the data before analyzing it. One of the most common and useful ways to that is called *tokenizing*, where you split text messages consisting of longer text into smaller units (called "tokens"). In today's examples, tokens will mostly be individual words (but they could also be other things, like numbers; "20" would be a token).
+
+#### Tokenizing
+
+`TidyText` has a neat function, `unnest_tokens()`, that makes it easy to tokenize your text data. 
+
+```{r tokens}
+df_tkn <- df_all %>% unnest_tokens(word, text) #can include the additional argument "to_lower = TRUE" if you don't want to distinguish between uppercase and lowercase.
+df_tkn #our new object
+#id refers to post-number; so each post is broken down to individual words
+```
+
+Let's see which words are very common in this document:
+
+```{r count1}
+df_tkn %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+#### Removing "stopwords"
+
+We see that words like "to", "a", and "of" appear frequently. That's common. These are called "stopwords" and for many types of basic text analysis it is useful to remove them. `TidyText` comes pre-loaded with a list of common stopwords (conveniently called "stop_words"). Let's take a look of the first ten words included in that list:
+
+```{r}
+stop_words
+```
+
+```{r stopwords}
+stop_words |> head(5)
+```
+
+To remove the stopwords from our tokenized dataset, we can use the `anti_join()` function:
+
+```{r stopwords2}
+df_no_stopwords <- df_tkn %>%
+  anti_join(stop_words)
+
+### and then we can do the count again:
+df_no_stopwords %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+Now, the stopwords are removed but the words "https" and "t.co" are still there, and they are not very useful (for what we'll be doing in today's tutorial). To remove them, we can modify the stopwords dictionary to include these words:
+
+```{r stopwords3}
+### make dataframe with additional words we want to remove
+additional_stopwords <- data.frame(word = c("https", "t.co", "19"), lexicon = "custom")
+
+### combine the additional stopwords with tidytext's original list of stopwords:
+all_my_stopwords <- rbind(stop_words, additional_stopwords)
+tail(all_my_stopwords, 10) #look at the bottom 10 words in all_my_stopwords
+```
+
+With that taken care of, we can repeat the steps from above to ensure all the relevant stopwords are removed:
+
+```{r count-final}
+df_final <- df_tkn %>%
+  anti_join(all_my_stopwords)
+
+df_final %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+Now, we're left with only the relevant words.
+
+### Visualizing common words
+
+Instead of listing this as a table, we can make it more reader-friendly and compelling by visualizing it. Today, we'll focus on two popular ways of doing this: bar charts and word clouds.
+
+#### Bar chart
+
+Before making a bar chart, we need to filter the data to only include words that appear frequently enough that we want them in our visualization:
+
+```{r bar-chart-prep}
+df_filtered <- df_final %>%
+  dplyr::count(word, sort = TRUE) %>% #this is the same step as before
+  filter(n > 1200) %>% #decide how frequently a word must appear to be included
+  mutate(word = reorder(word, n))     # to make the bar graph ordered
+
+df_filtered
+```
+
+Then, we can use the object we just created, *df_filtered*, in combination with `ggplot`, a powerful data visualization package that is a part of the Tidyverse.
+
+```{r bar-chart2}
+(myplot <- df_filtered %>%
+  ggplot(aes(word, n)) + #use ggplot
+  geom_col() + 
+  coord_flip()    ) #change bars to horizontal to work better with words
+```
+
+You can change make the plot look nicer by adding some labels and a theme:
+
+```{r bar-chart3}
+myplot + 
+  labs(
+        title="Most widely used words in COVID-related tweets",
+        x ="", 
+        y = "N") + #remember: X and Y has been flipped
+  theme_minimal()
+```
+
+##### Word cloud
+
+Another possibility is to make a word cloud using the `wordcloud` package:
+
+```{r wordcloud}
+set.seed(3) #changing this number will change what the word cloud looks like
+
+df_final %>%
+  dplyr::count(word, sort = TRUE) %>% #same count as before
+  with(wordcloud::wordcloud(word, n, max.words = 80
+                            #, colors = c("blue", "red", "yellow"), #optional!
+                          #  random.color=T #optional
+                            ))
+```
+
+

@@ -1,0 +1,195 @@
+---
+title: "Introduction to Text Analysis in R (Activity 2) - With solutions"
+author: "Christian Staal Bruun Overgaard"
+date: "April 25, 2023"
+output: html_document
+---
+
+In this tutorial, you'll get the chance to use the skills you learned about in *Activity 1*. Please feel free to go through the exercises below with a dataset of your own. This notebook has the solutions to *Activity 2*, assuming you're using the dataset provided by me: *10K_Facebook_posts_for_tutorial_USnewsoutlets.csv*. Before looking at the solutions, I recommend trying the *no solutions* version to see how much of Activity 2 you can do on your own by using what you learned (and the code you got) in Activity 1.
+
+## Load packages
+
+```{r load_packages}
+library(readr) #for reading csv's
+library(readxl) #for reading Excel sheets 
+library(tidytext) #main package for text analysis
+library(tidyverse) #collection of useful packages
+library(ggthemes) #for customizing plots
+library(wordcloud) 
+```
+
+## Import Data
+
+In this tutorial, we'll work with a dataset that consists of 30,000 tweets about COVID-19, posted between January and May in 2020. (Or, you can work with a dataset of your own if you'd like!)
+
+### Load
+
+First, load either (A) Your own data, or (B) the file, "10K_Facebook_posts_for_tutorial_USnewsoutlets.csv" into R:
+
+```{r }
+dat <- read_csv("10K_Facebook_posts_for_tutorial_USnewsoutlets.csv")
+```
+
+### Inspect
+
+Do a quick inspection of the data. TIP: You can use the head() function.
+
+```{r}
+glimpse(dat)
+```
+
+### Select the relevant columns
+
+Some of the variables consistent of two or more words seperated by blank spaces. That's quite inconvenient; in R, life is easier when there are no blank spaces in our variable names. Fortunately, the `janitor` package makes it easy to standardize the column names in a given dataset:
+
+```{r}
+#install.packages("janitor")
+df <- janitor::clean_names(dat) #Here, we're putting the package name in front the function name, instead of loading the package before using it.
+
+colnames(df) |> head(10) #look at the names of the first 10 columns in df
+```
+
+In this tutorial, we'll only use the id and Message colums:
+
+```{r}
+df <- df |> select(id, message, user_name)
+```
+
+## Subsetting data
+
+### Use words to subset
+
+Try to subset to include only messages that mention the word "President"
+
+```{r}
+df_pres <- df[grepl("President"
+                     , df$message, ignore.case=TRUE),] 
+```
+
+Now, try to subset to messages that include either the word "President" OR the word "Biden":
+
+```{r}
+df_either <- df[grepl("President|Biden"
+                     , df$message, ignore.case=TRUE),] 
+```
+
+### Bonus: Looking at only specific Facebook pages
+
+We didn't talk about this in the first tutorial but if you wanted to only view content from a specific Facebook page, this is how you could do it:
+
+```{r}
+df_thehill <- df %>%
+  filter(user_name == "TheHill")
+```
+
+* This kinds of filtering can be useful. The plots we're doing below could, for example, be done for different news outlets. 
+
+In this tutorial, we'll analyze the full dataset (so we will use the dataframe called "df").
+
+## Working with the TidyText package
+
+### Transform data to relevant structures
+
+#### Tokenizing
+
+First, use the function, `unnest_tokens` to tokenize the data. Remember, the function takes two arguments: level you want to tokenize at (use "word") and the name of the column with the text (in our case "message").
+
+```{r}
+df_tok <- df |> unnest_tokens(word, message)
+```
+
+Now, do a count to identify the most common words. (HINT: It's totally fine to look at the code from Activity 1 or from any other source.)
+
+```{r}
+df_tok %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+#### Removing "stopwords"
+
+It's hard to gauge the meaning of the content, with all these stop words, right? Let's try to remove them! (HINT: you can use the anti_join function.)
+
+```{r}
+df_no_stopwords <- df_tok %>%
+  anti_join(stop_words)
+
+### and then we can do the count again:
+df_no_stopwords %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+Remove any additional words that you think would be helpful to remove:
+
+```{r}
+additional_stopwords <- data.frame(word = c("http", "https"), lexicon = "custom")
+
+### combine the additional stopwords with tidytext's original list of stopwords:
+all_my_stopwords <- rbind(stop_words, additional_stopwords)
+tail(all_my_stopwords)
+```
+
+Now, do a final count of the top words:
+
+```{r}
+df_no_stopwords <- df_tok %>%
+  anti_join(all_my_stopwords)
+
+df_no_stopwords %>%
+  dplyr::count(word, sort = TRUE)
+```
+
+### Visualizing common words
+
+#### Bar plot
+
+Next, make the initial preperation for the ggplot (HINT: use the functions, count, filter, mutate—encouraged to look at the code from Activity 1).
+
+How many times do you think a word needs to appear to be worth including in the bar plot? (HINT: use the table above as a reference point when making that decision.)
+
+```{r}
+(df_filtered <- df_no_stopwords %>%
+  dplyr::count(word, sort = TRUE) %>% #this is the same step as before
+  filter(n > 280) %>% #decide how frequently a word must appear to be included
+  mutate(word = reorder(word, n))    )
+
+```
+
+Then,  build the basic ggplot:
+
+```{r}
+(myplot <- df_filtered %>%
+  ggplot(aes(word, n)) + #use ggplot
+  geom_col() + #
+  coord_flip()    )
+
+```
+
+Try making the plot look nicer by adding some labels and a theme:
+
+```{r}
+myplot + 
+  labs(
+        title="Most widely used words",
+        x ="", 
+        y = "N") + #remember: X and Y has been flipped
+  theme_minimal()
+
+
+```
+
+
+##### Wordcloud
+
+As the final step, try making a word cloud:
+
+```{r}
+set.seed(3) #play with different seeds
+df_no_stopwords %>%
+  dplyr::count(word, sort = TRUE) %>% #same count as before
+  with(wordcloud::wordcloud(word, n, max.words = 50
+                            #, colors = c("blue", "darkblue", "black")
+                            ))
+
+```
+
+

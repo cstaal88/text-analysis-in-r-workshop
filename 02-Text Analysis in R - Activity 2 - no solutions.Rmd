@@ -1,0 +1,161 @@
+---
+title: "Introduction to Text Analysis in R (Activity 2)"
+author: "Christian Staal Bruun Overgaard"
+date: "April 25, 2023"
+output: html_document
+---
+
+*This file doesn't have the solutions included. The solutions are provided in a seperate file.*
+
+In this tutorial, you'll get the chance to use the skills you learned about in *Activity 1*. Please feel free to go through the exercises below with a dataset of your own.
+
+## Load packages
+
+```{r load_packages}
+library(readr) #for reading csv's
+library(readxl) #for reading Excel sheets 
+library(tidytext) #main package for text analysis
+library(tidyverse) #collection of useful packages
+library(ggthemes) #for customizing plots
+library(wordcloud) 
+```
+
+## Import Data
+
+In this tutorial, we'll work with a dataset that consists of 30,000 tweets about COVID-19, posted between January and May in 2020. (Or, you can work with a dataset of your own if you'd like!)
+
+### Load
+
+First, load either (A) Your own data, or (B) the file, "10K_Facebook_posts_for_tutorial_USnewsoutlets.csv" into R:
+
+```{r }
+
+```
+
+### Inspect
+
+Do a quick inspection of the data. TIP: You can use the `head()` function or the `glimpse()` function.
+
+```{r}
+
+```
+
+### Select the relevant columns
+
+Some of the variables consistent of two or more words seperated by blank spaces. That's quite inconvenient; in R, life is easier when there are no blank spaces in our variable names. Fortunately, the `janitor` package makes it easy to standardize the column names in a given dataset. (I encourage you to check out the `janitor` package but feel free to proceed without it if you prefer.)
+
+```{r}
+
+```
+
+In this tutorial, we'll only use the id and Message colums:
+
+```{r}
+
+```
+
+## Subsetting data
+
+### Use words to subset
+
+Try to subset to include only messages that mention the word "President"
+
+```{r}
+
+```
+
+Now, try to subset to messages that include either the word "President" OR the word "Biden":
+
+```{r}
+
+```
+
+### Bonus: Looking at only specific Facebook pages
+
+We didn't talk about this in the first tutorial but if you wanted to only view content from a specific Facebook page, this is how you could do it:
+
+```{r}
+df_thehill <- df %>%
+  filter(user_name == "TheHill")
+```
+
+* This kinds of filtering can be useful. The plots we're doing below could, for example, be done for different news outlets. 
+
+In this tutorial, we'll analyze the full dataset (so we will use the dataframe called "df").
+
+## Working with the TidyText package
+
+### Transform data to relevant structures
+
+#### Tokenizing
+
+First, use the function, `unnest_tokens` to tokenize the data. Remember, the function takes two arguments: level you want to tokenize at (use "word") and the name of the column with the text (in our case "message").
+
+```{r}
+
+```
+
+Now, do a count to identify the most common words. (HINT: It's totally fine to look at the code from Activity 1 or from any other source.)
+
+```{r}
+
+```
+
+#### Removing "stopwords"
+
+It's hard to gauge the meaning of the content, with all these stop words, right? Let's try to remove them! (HINT: you can use the anti_join function.)
+
+```{r}
+
+```
+
+Remove any additional words that you think would be helpful to remove:
+
+```{r}
+
+```
+
+Now, do a final count of the top words:
+
+```{r}
+
+```
+
+### Visualizing common words
+
+#### Bar plot
+
+Next, make the initial preperation for the ggplot (HINT: use the functions, count, filter, mutate—encouraged to look at the code from Activity 1).
+
+How many times do you think a word needs to appear to be worth including in the bar plot? (HINT: use the table above as a reference point when making that decision.)
+
+```{r}
+
+
+```
+
+Then,  build the basic ggplot:
+
+```{r}
+
+
+```
+
+Try making the plot look nicer by adding some labels and a theme:
+
+```{r}
+
+
+```
+
+
+##### Wordcloud
+
+As the final step, try making a word cloud:
+
+```{r}
+
+
+```
+
+
